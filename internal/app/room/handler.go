@@ -2,7 +2,6 @@ package room
 
 import (
 	"errors"
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/sebastianreh/chatroom/cmd/httpserver/resterror"
 	"github.com/sebastianreh/chatroom/internal/config"
@@ -12,7 +11,7 @@ import (
 	"net/http"
 )
 
-const handlerName = "room.handler.%s"
+const handlerName = "room.handler"
 
 type RoomHandler interface {
 	Create(c echo.Context) error
@@ -38,14 +37,13 @@ func NewRoomHandler(cfg config.Config, service RoomService, logger logger.Logger
 func (handler *roomHandler) Create(ctx echo.Context) error {
 	request := new(entities.Room)
 	if err := ctx.Bind(request); err != nil {
-		handler.logs.Error(err.Error(), fmt.Sprintf(handlerName, "Create"))
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "Set"))
 		ctx.Error(err)
 		return nil
 	}
 
 	err := handler.service.Create(ctx.Request().Context(), *request)
 	if err != nil {
-		handler.logs.Error(err.Error(), fmt.Sprintf(handlerName, "Create"))
 		ctx.Error(err)
 		return nil
 	}
@@ -57,7 +55,7 @@ func (handler *roomHandler) Get(ctx echo.Context) error {
 	roomSearch := new(entities.RoomSearch)
 	if err := ctx.Bind(roomSearch); err != nil {
 		err = resterror.NewBadRequestError(err.Error())
-		handler.logs.Error(err.Error(), fmt.Sprintf(handlerName, "Get"))
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "Get"))
 		ctx.Error(err)
 		return nil
 	}
@@ -75,7 +73,7 @@ func (handler *roomHandler) Delete(ctx echo.Context) error {
 	roomID := ctx.Param("id")
 	if str.IsEmpty(roomID) {
 		err := errors.New("error: empty id")
-		handler.logs.Error(err.Error(), fmt.Sprintf(handlerName, "Delete"))
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "Delete"))
 		ctx.Error(err)
 		return nil
 	}
@@ -90,6 +88,6 @@ func (handler *roomHandler) Delete(ctx echo.Context) error {
 }
 
 func (handler *roomHandler) Join(c echo.Context) error {
-	//TODO implement me
-	panic("implement me")
+	//roomSearch := new(entities.RoomSearch)
+	return nil
 }

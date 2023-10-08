@@ -15,8 +15,11 @@ type (
 				Users string `envconfig:"USERS_COLLECTION" default:"users"`
 				Rooms string `envconfig:"ROOMS_COLLECTION" default:"rooms"`
 			}
-			Database string `envconfig:"MONGODB_DATABASE" default:"rooms"`
+			Database string `envconfig:"MONGODB_DATABASE" default:"chatroom"`
 			URI      string `envconfig:"MONGODB_URI" default:"mongodb://localhost:27018"`
+		}
+		Redis struct {
+			Host string `envconfig:"REDIS_HOST" default:"localhost:6379"`
 		}
 	}
 )

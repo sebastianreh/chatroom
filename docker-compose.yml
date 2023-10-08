@@ -2,7 +2,7 @@ services:
   httpserver:
     ports:
       - "8000:8000"
-    image:  chatroom:latest
+    image: chatroom:latest
     volumes:
       - ./:/go/src/chatroom
     depends_on:
@@ -10,7 +10,7 @@ services:
     environment:
       WAIT_HOSTS: mongo:27018
       MONGODB_URI: mongodb://mongo:27018
-      ENV:  local
+      ENV: local
       DD_TRACE_ENABLED: "false"
     networks:
       - backend
@@ -24,6 +24,15 @@ services:
     command: mongod --port 27018 --setParameter ttlMonitorSleepSecs=1
     ports:
       - "27018:27018"
+
+  redis:
+    networks:
+      - backend
+    image: 'bitnami/redis:latest'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6379:6379"
 
 networks:
   backend:

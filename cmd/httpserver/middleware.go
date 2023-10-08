@@ -51,14 +51,17 @@ func WithCORS() Middleware {
 
 func HTTPErrorHandler(err error, ctx echo.Context) {
 	var apiError resterror.RestErr
-
 	switch value := err.(type) {
+	case *echo.HTTPError:
+		apiError = resterror.NewRestError(value.Error(), value.Code, err.Error())
 	case exceptions.DuplicatedException:
 		apiError = resterror.NewRestError(err.Error(), http.StatusConflict, "conflict")
 	case resterror.RestErr:
 		apiError = value
 	case exceptions.NotFoundException:
 		apiError = resterror.NewNotFoundError(err.Error())
+	case exceptions.UnauthorizedException:
+		apiError = resterror.NewUnauthorizedError(err.Error())
 	default:
 		apiError = resterror.NewInternalServerError(err.Error(), err)
 	}

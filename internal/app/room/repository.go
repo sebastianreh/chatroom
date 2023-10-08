@@ -18,7 +18,7 @@ const (
 )
 
 type RoomRepository interface {
-	Create(ctx context.Context, room entities.RoomDTO) error
+	Create(ctx context.Context, room entities.Room) error
 	Get(ctx context.Context, search entities.RoomSearch) ([]entities.Room, error)
 	Update(ctx context.Context, roomID string, room entities.Room) error
 }
@@ -39,10 +39,11 @@ func NewRoomRepository(cfg config.Config, mongoDBier mongodb.MongoDBier, logger 
 	}
 }
 
-func (repository *roomRepository) Create(ctx context.Context, room entities.RoomDTO) error {
-	_, err := repository.mongodb.Collection(repository.collectionName).InsertOne(ctx, room)
+func (repository *roomRepository) Create(ctx context.Context, room entities.Room) error {
+	roomDTO := entities.CreateRoomDTOFromEntity(room)
+	_, err := repository.mongodb.Collection(repository.collectionName).InsertOne(ctx, roomDTO)
 	if err != nil {
-		repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Create"))
+		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Set"))
 		return err
 	}
 
@@ -56,32 +57,26 @@ func (repository *roomRepository) Get(ctx context.Context, search entities.RoomS
 	cursor, err := collection.Find(ctx, filter)
 
 	if err != nil {
-		repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Get"))
+		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Get"))
 		return rooms, err
 	}
 
 	defer func() {
 		errClose := cursor.Close(ctx)
 		if errClose != nil {
-			repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Get"))
+			repository.logs.Error(str.ErrorConcat(err, repositoryName, "Get"))
 		}
 	}()
 
 	for cursor.Next(ctx) {
-		room := new(entities.RoomDTO)
-		err = cursor.Decode(room)
+		roomDTO := new(entities.RoomDTO)
+		err = cursor.Decode(roomDTO)
 		if err != nil {
-			repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Get"))
+			repository.logs.Error(str.ErrorConcat(err, repositoryName, "Get"))
 			return rooms, err
 		}
 
-		rooms = append(rooms, entities.CreateRoomFromRoomDTO(*room))
-	}
-
-	if len(rooms) == 0 {
-		err = exceptions.NewNotFoundException("rooms by filter not found")
-		repository.logs.Warn(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Get"))
-		return rooms, err
+		rooms = append(rooms, entities.CreateRoomEntityFromRoomDTO(*roomDTO))
 	}
 
 	return rooms, nil
@@ -90,7 +85,7 @@ func (repository *roomRepository) Get(ctx context.Context, search entities.RoomS
 func (repository *roomRepository) Update(ctx context.Context, roomID string, room entities.Room) error {
 	foundID, err := primitive.ObjectIDFromHex(roomID)
 	if err != nil {
-		repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Get"))
+		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Update"))
 		return err
 	}
 
@@ -101,7 +96,7 @@ func (repository *roomRepository) Update(ctx context.Context, roomID string, roo
 		{Key: "$set",
 			Value: bson.D{
 				primitive.E{Key: entities.RoomNameField, Value: room.Name},
-				primitive.E{Key: entities.IsActiveNameField, Value: room.IsActive},
+				primitive.E{Key: entities.RoomIsActiveNameField, Value: room.IsActive},
 			},
 		},
 	}
@@ -109,13 +104,13 @@ func (repository *roomRepository) Update(ctx context.Context, roomID string, roo
 	result, err := Collection.UpdateOne(ctx, filter, update)
 
 	if err != nil {
-		repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Get"))
+		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Update"))
 		return err
 	}
 
 	if result.MatchedCount == 0 {
-		err = exceptions.NewNotFoundException(fmt.Sprintf("room %s not found", roomID))
-		repository.logs.Error(err.Error(), fmt.Sprintf("%s.%s", repositoryName, "Update"))
+		err = exceptions.NewNotFoundException(fmt.Sprintf("room with ID:%s not found", roomID))
+		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Update"))
 		return err
 	}
 
@@ -134,7 +129,11 @@ func createFilter(search entities.RoomSearch) bson.D {
 	}
 
 	if search.IsActive != nil {
-		filter = append(filter, bson.E{Key: entities.IsActiveNameField, Value: search.IsActive})
+		filter = append(filter, bson.E{Key: entities.RoomIsActiveNameField, Value: search.IsActive})
+	}
+
+	if len(filter) == 0 {
+		return bson.D{}
 	}
 
 	return filter

@@ -8,6 +8,7 @@ import (
 	"github.com/sebastianreh/chatroom/internal/entities"
 	"github.com/sebastianreh/chatroom/internal/entities/exceptions"
 	"github.com/sebastianreh/chatroom/pkg/logger"
+	str "github.com/sebastianreh/chatroom/pkg/strings"
 )
 
 const (
@@ -34,6 +35,7 @@ func NewRoomService(cfg config.Config, repository RoomRepository, logger logger.
 		logs:       logger,
 	}
 }
+
 func (service *roomService) Create(ctx context.Context, room entities.Room) error {
 	rooms, err := service.repository.Get(ctx, entities.RoomSearch{Name: room.Name})
 	if err != nil {
@@ -42,11 +44,11 @@ func (service *roomService) Create(ctx context.Context, room entities.Room) erro
 
 	if len(rooms) > 0 {
 		err = exceptions.NewDuplicatedException(fmt.Sprintf("room '%s' already exist", room.Name))
-		service.logs.Error(err.Error(), fmt.Sprintf("%s.%s", serviceName, "Create"))
+		service.logs.Error(str.ErrorConcat(err, serviceName, "Set"))
 		return err
 	}
 
-	err = service.repository.Create(ctx, entities.CreateRoomDTOFromRequest(room))
+	err = service.repository.Create(ctx, room)
 	if err != nil {
 		return err
 	}
@@ -66,6 +68,12 @@ func (service *roomService) Get(ctx context.Context, search entities.RoomSearch)
 		return roomsResponse, err
 	}
 
+	if len(rooms) == 0 {
+		err = exceptions.NewNotFoundException("rooms by filter not found")
+		service.logs.Warn(str.ErrorConcat(err, repositoryName, "Get"))
+		return roomsResponse, err
+	}
+
 	return entities.RoomsGetResponse{Rooms: rooms}, nil
 }
 
@@ -75,9 +83,15 @@ func (service *roomService) Delete(ctx context.Context, roomID string) error {
 		return err
 	}
 
+	if len(rooms) == 0 {
+		err = exceptions.NewNotFoundException(fmt.Sprintf("no room was found with id: %s", roomID))
+		service.logs.Warn(str.ErrorConcat(err, serviceName, "Delete"))
+		return err
+	}
+
 	if len(rooms) != 1 {
 		err = errors.New("found more than one room to delete")
-		service.logs.Error(err.Error(), fmt.Sprintf("%s.%s", serviceName, "Get"))
+		service.logs.Error(str.ErrorConcat(err, serviceName, "Delete"))
 		return err
 	}
 

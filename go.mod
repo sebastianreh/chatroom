@@ -3,6 +3,7 @@ module github.com/sebastianreh/chatroom
 go 1.19
 
 require (
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gorilla/websocket v1.5.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.11.1
@@ -12,6 +13,8 @@ require (
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect

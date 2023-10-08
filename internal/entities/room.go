@@ -3,14 +3,14 @@ package entities
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 const (
-	RoomIDField       = "_id"
-	RoomNameField     = "name"
-	IsActiveNameField = "is_active"
+	RoomIDField           = "_id"
+	RoomNameField         = "name"
+	RoomIsActiveNameField = "is_active"
 )
 
 type Room struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
+	ID       string `json:"id" validate:"required"`
+	Name     string `json:"name" validate:"required"`
 	IsActive bool   `json:"is_active"`
 }
 
@@ -30,7 +30,7 @@ type RoomSearch struct {
 	IsActive *bool  `query:"is_active"  bson:"is_active"`
 }
 
-func CreateRoomDTOFromRequest(request Room) RoomDTO {
+func CreateRoomDTOFromEntity(request Room) RoomDTO {
 	return RoomDTO{
 		ID:       primitive.NewObjectID(),
 		Name:     request.Name,
@@ -38,7 +38,7 @@ func CreateRoomDTOFromRequest(request Room) RoomDTO {
 	}
 }
 
-func CreateRoomFromRoomDTO(DTO RoomDTO) Room {
+func CreateRoomEntityFromRoomDTO(DTO RoomDTO) Room {
 	return Room{
 		ID:       DTO.ID.Hex(),
 		Name:     DTO.Name,
