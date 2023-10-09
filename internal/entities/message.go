@@ -10,14 +10,14 @@ const (
 )
 
 type Event struct {
-	User      SessionUser `json:"user"`
-	Type      string      `json:"type"`
-	CreatedAt time.Time   `json:"created_at"`
-	Content   string      `json:"content"`
+	SessionUser
+	Type      string    `json:"type"`
+	CreatedAt time.Time `json:"created_at"`
+	Content   string    `json:"content"`
 }
 
 type ChatMessage struct {
-	User      SessionUser `json:"user"`
-	CreatedAt time.Time   `json:"created_at"`
-	Content   string      `json:"content"`
+	SessionUser
+	CreatedAt time.Time `json:"created_at"`
+	Content   string    `json:"content"`
 }

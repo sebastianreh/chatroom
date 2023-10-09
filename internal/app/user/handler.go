@@ -35,7 +35,7 @@ func NewUserHandler(cfg config.Config, service UserService, logger logger.Logger
 }
 
 func (handler *userHandler) Create(ctx echo.Context) error {
-	request := new(entities.User)
+	var request *entities.User
 	if err := ctx.Bind(request); err != nil {
 		handler.logs.Error(str.ErrorConcat(err, handlerName, "Set"))
 		ctx.Error(err)

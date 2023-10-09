@@ -106,7 +106,7 @@ func (service *userService) Delete(ctx context.Context, userID string) error {
 	}
 
 	if userFound.IsEmpty() {
-		err = exceptions.NewNotFoundException(fmt.Sprintf("user with ID '%s' does not exist", userID))
+		err = exceptions.NewNotFoundException(fmt.Sprintf("user with UserID '%s' does not exist", userID))
 		service.logs.Error(str.ErrorConcat(err, serviceName, "Set"))
 		return err
 	}

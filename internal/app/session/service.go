@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"github.com/sebastianreh/chatroom/internal/config"
 	"github.com/sebastianreh/chatroom/internal/entities"
 	"github.com/sebastianreh/chatroom/pkg/logger"
@@ -17,7 +18,7 @@ const (
 type SessionService interface {
 	Join(ctx context.Context, sessionJoin entities.SessionRequest) error
 	Exit(ctx context.Context, sessionExit entities.SessionRequest) error
-	PublicMessage(ctx context.Context, user entities.SessionUser, roomID, message string) error
+	SaveMessage(ctx context.Context, user entities.SessionUser, roomID, message string) error
 	GetMessages(ctx context.Context, roomID string) ([]entities.ChatMessage, error)
 }
 
@@ -44,17 +45,17 @@ func (service *sessionService) Join(ctx context.Context, sessionJoin entities.Se
 	if session.RoomID == str.Empty {
 		session.RoomID = sessionJoin.RoomID
 		session.Events = append(session.Events, entities.Event{
-			User:      sessionJoin.User,
-			Type:      entities.RoomActionEventType,
-			CreatedAt: time.Now().UTC(),
-			Content:   entities.JoinContent,
+			SessionUser: sessionJoin.SessionUser,
+			Type:        entities.RoomActionEventType,
+			CreatedAt:   time.Now().UTC(),
+			Content:     entities.JoinContent,
 		})
 	} else if session.RoomID == sessionJoin.RoomID {
 		session.Events = append(session.Events, entities.Event{
-			User:      sessionJoin.User,
-			Type:      entities.RoomActionEventType,
-			CreatedAt: time.Now().UTC(),
-			Content:   entities.JoinContent,
+			SessionUser: sessionJoin.SessionUser,
+			Type:        entities.RoomActionEventType,
+			CreatedAt:   time.Now().UTC(),
+			Content:     entities.JoinContent,
 		})
 	}
 
@@ -72,34 +73,52 @@ func (service *sessionService) Exit(ctx context.Context, sessionExit entities.Se
 		return err
 	}
 
+	if session.RoomID == str.Empty {
+		err = errors.New("session is empty, user was not inside room")
+		service.logs.Error(str.ErrorConcat(err, serviceName, "Set"))
+		return err
+	}
+
 	session.Events = append(session.Events, entities.Event{
-		User:      sessionExit.User,
-		Type:      entities.RoomActionEventType,
-		CreatedAt: time.Now().UTC(),
-		Content:   entities.ExitContent,
+		SessionUser: sessionExit.SessionUser,
+		Type:        entities.RoomActionEventType,
+		CreatedAt:   time.Now().UTC(),
+		Content:     entities.ExitContent,
 	})
 
 	err = service.repository.Set(ctx, session)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
-func (service *sessionService) PublicMessage(ctx context.Context, user entities.SessionUser, roomID, message string) error {
+func (service *sessionService) SaveMessage(ctx context.Context, user entities.SessionUser, roomID, message string) error {
 	session, err := service.repository.Get(ctx, roomID)
 	if err != nil {
 		return err
 	}
 
+	if session.RoomID == str.Empty {
+		err = errors.New("session is empty, user was not logged in")
+		service.logs.Error(str.ErrorConcat(err, serviceName, "Set"))
+		return err
+	}
+
 	session.Events = append(session.Events, entities.Event{
-		User:      user,
-		Type:      entities.UserMessageEventType,
-		CreatedAt: time.Now().UTC(),
-		Content:   message,
+		SessionUser: user,
+		Type:        entities.UserMessageEventType,
+		CreatedAt:   time.Now().UTC(),
+		Content:     message,
 	})
 
 	err = service.repository.Set(ctx, session)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (service *sessionService) GetMessages(ctx context.Context, roomID string) ([]entities.ChatMessage, error) {
@@ -120,9 +139,9 @@ func (service *sessionService) GetMessages(ctx context.Context, roomID string) (
 		}
 		if event.Type == entities.UserMessageEventType {
 			message := entities.ChatMessage{
-				User:      event.User,
-				CreatedAt: event.CreatedAt,
-				Content:   event.Content,
+				SessionUser: event.SessionUser,
+				CreatedAt:   event.CreatedAt,
+				Content:     event.Content,
 			}
 			messages = append(messages, message)
 			messageCounter++

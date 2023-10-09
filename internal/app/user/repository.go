@@ -90,6 +90,7 @@ func (repository *userRepository) Get(ctx context.Context, search entities.UserS
 
 func (repository *userRepository) FindOne(ctx context.Context, userSearch entities.UserSearch) (entities.User, error) {
 	var user entities.User
+	var userDTO entities.UserDTO
 	collection := repository.mongodb.Collection(repository.collectionName)
 	result := collection.FindOne(ctx, createFilter(userSearch))
 	if result.Err() != nil {
@@ -103,11 +104,13 @@ func (repository *userRepository) FindOne(ctx context.Context, userSearch entiti
 		return user, result.Err()
 	}
 
-	err := result.Decode(&user)
+	err := result.Decode(&userDTO)
 	if err != nil {
 		repository.logs.Error(str.ErrorConcat(result.Err(), repositoryName, "FindOne"))
 		return user, err
 	}
+
+	user = entities.CreateUserEntityFromUserDTO(userDTO)
 
 	return user, nil
 }
@@ -139,7 +142,7 @@ func (repository *userRepository) Update(ctx context.Context, userID string, use
 	}
 
 	if result.MatchedCount == 0 {
-		err = exceptions.NewNotFoundException(fmt.Sprintf("user with ID:%s not found", userID))
+		err = exceptions.NewNotFoundException(fmt.Sprintf("user with UserID:%s not found", userID))
 		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Update"))
 		return err
 	}

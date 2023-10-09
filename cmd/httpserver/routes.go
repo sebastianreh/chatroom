@@ -5,7 +5,6 @@ func (s *Server) Routes() {
 	root := s.Server.Group(s.dependencies.Config.Prefix)
 	root.GET("/ping", s.dependencies.PingHandler.Ping)
 
-	root.GET("/ws", Hello)
 	userGroup := root.Group("/user")
 	userGroup.POST("", s.dependencies.UserHandler.Create)
 	userGroup.POST("/login", s.dependencies.UserHandler.Login)
@@ -17,9 +16,9 @@ func (s *Server) Routes() {
 	roomGroup.GET("", s.dependencies.RoomHandler.Get)
 	roomGroup.DELETE("/:id", s.dependencies.RoomHandler.Delete)
 
-	//roomGroup.GET("/ws", Conne)
-
 	sessionGroup := root.Group("/session")
 	sessionGroup.POST("/join", s.dependencies.SessionHandler.Join)
+	sessionGroup.POST("/exit", s.dependencies.SessionHandler.Exit)
 	sessionGroup.GET("/messages/:room_id", s.dependencies.SessionHandler.GetMessages)
+	sessionGroup.GET("", s.dependencies.SessionHandler.OpenConnection)
 }

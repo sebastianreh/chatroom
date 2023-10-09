@@ -45,6 +45,7 @@ func (repository *sessionRepository) Set(ctx context.Context, session entities.S
 	err = repository.redis.Set(ctx, session.RoomID, string(eventsBytes), InactiveTimeTTL)
 	if err != nil {
 		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Set"))
+		return err
 	}
 	return err
 }

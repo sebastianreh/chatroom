@@ -77,6 +77,7 @@ func CreateUserEntityFromUserDTO(DTO UserDTO) User {
 	return User{
 		ID:       DTO.ID.Hex(),
 		Username: DTO.Username,
+		Password: DTO.Password,
 		IsActive: DTO.IsActive,
 	}
 }

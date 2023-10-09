@@ -109,7 +109,7 @@ func (repository *roomRepository) Update(ctx context.Context, roomID string, roo
 	}
 
 	if result.MatchedCount == 0 {
-		err = exceptions.NewNotFoundException(fmt.Sprintf("room with ID:%s not found", roomID))
+		err = exceptions.NewNotFoundException(fmt.Sprintf("room with UserID:%s not found", roomID))
 		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Update"))
 		return err
 	}
