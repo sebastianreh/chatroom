@@ -21,3 +21,8 @@ type ChatMessage struct {
 	CreatedAt time.Time `json:"created_at"`
 	Content   string    `json:"content"`
 }
+
+type BotMessage struct {
+	Command string `json:"command"`
+	Value   string `json:"value"`
+}

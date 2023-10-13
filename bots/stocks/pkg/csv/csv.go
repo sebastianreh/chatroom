@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
-	"github.com/sebastianreh/chatroom-bots/stocks/entities"
 )
 
-func ReadStockCsv(CSV []byte) (entities.Stock, error) {
+func ReadStockCsv(CSV []byte) ([][]string, error) {
 	var records [][]string
 	reader := csv.NewReader(bytes.NewReader(CSV))
 	for {
@@ -20,5 +19,5 @@ func ReadStockCsv(CSV []byte) (entities.Stock, error) {
 		}
 		records = append(records, record)
 	}
-	return entities.MapRecordsToStock(records)
+	return records, nil
 }

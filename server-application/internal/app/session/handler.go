@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/labstack/echo/v4"
@@ -14,6 +13,7 @@ import (
 	ws "github.com/sebastianreh/chatroom/pkg/websocket"
 	"log"
 	"net/http"
+	"strings"
 )
 
 const handlerName = "session.handler"
@@ -22,16 +22,17 @@ type SessionHandler interface {
 	Join(c echo.Context) error
 	Exit(c echo.Context) error
 	GetMessages(c echo.Context) error
-	HandleConnection(c echo.Context) error
+	HandleChatConnection(c echo.Context) error
+	HandleBotConnection(c echo.Context) error
+	Listen()
 }
 
 type sessionHandler struct {
-	config      config.Config
-	websocket   ws.Websocket
-	listener    kafka.Consumer
-	service     SessionService
-	logs        logger.Logger
-	connections map[string]*ws.Websocket
+	config    config.Config
+	websocket ws.Websocket
+	listener  kafka.Consumer
+	service   SessionService
+	logs      logger.Logger
 }
 
 func NewSessionHandler(cfg config.Config, service SessionService, websocket ws.Websocket, listener kafka.Consumer, logger logger.Logger) SessionHandler {
@@ -52,14 +53,25 @@ func (handler *sessionHandler) Listen() {
 	}
 }
 
-func (handler *sessionHandler) ReadStockMessage(context.Context, []byte) {
-	err := json.Unmarshal(message, &chargebackRequest)
+func (handler *sessionHandler) ReadStockMessage(message []byte) {
+	var stock entities.StockMessage
+	err := json.Unmarshal(message, &stock)
+	if err != nil {
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "ReadStockMessage"))
+		return
+	}
 
+	handler.logs.Info("New message received", handlerName, "Listen")
+
+	err = handler.websocket.BroadCastMessage(message, stock.RoomID)
+	if err != nil {
+		return
+	}
 }
 
 func (handler *sessionHandler) Join(ctx echo.Context) error {
 	var joinResponse entities.JoinResponse
-	request := new(entities.SessionRequest)
+	request := new(entities.SessionChatRequest)
 	if err := ctx.Bind(request); err != nil {
 		handler.logs.Error(str.ErrorConcat(err, handlerName, "Join"))
 		ctx.Error(err)
@@ -75,15 +87,14 @@ func (handler *sessionHandler) Join(ctx echo.Context) error {
 	joinAction := entities.GetJoinAction(request.SessionUser)
 	err = handler.websocket.BroadCastMessage(joinAction.ToBytes(), request.RoomID)
 	if err != nil {
-		handler.logs.Error(str.ErrorConcat(err, handlerName, "Join"))
-		ctx.Error(err)
+
 	}
 
 	return ctx.JSON(http.StatusOK, joinResponse)
 }
 
 func (handler *sessionHandler) Exit(ctx echo.Context) error {
-	request := new(entities.SessionRequest)
+	request := new(entities.SessionChatRequest)
 	if err := ctx.Bind(request); err != nil {
 		handler.logs.Error(str.ErrorConcat(err, handlerName, "Exit"))
 		ctx.Error(err)
@@ -93,22 +104,20 @@ func (handler *sessionHandler) Exit(ctx echo.Context) error {
 	err := handler.websocket.CloseSocket(request.RoomID, request.UserID)
 	if err != nil {
 		err = resterror.NewBadRequestError(err.Error())
-		handler.logs.Error(str.ErrorConcat(err, handlerName, "Exit"))
 		ctx.Error(err)
 		return nil
+	}
+
+	exitAction := entities.GetExitAction(request.SessionUser)
+	err = handler.websocket.BroadCastMessage(exitAction.ToBytes(), request.RoomID)
+	if err != nil {
+		ctx.Error(err)
 	}
 
 	err = handler.service.Exit(ctx.Request().Context(), *request)
 	if err != nil {
 		ctx.Error(err)
 		return nil
-	}
-
-	exitAction := entities.GetJoinAction(request.SessionUser)
-	err = handler.websocket.BroadCastMessage(exitAction.ToBytes(), request.RoomID)
-	if err != nil {
-		handler.logs.Error(str.ErrorConcat(err, handlerName, "Join"))
-		ctx.Error(err)
 	}
 
 	return ctx.NoContent(http.StatusOK)
@@ -118,7 +127,7 @@ func (handler *sessionHandler) GetMessages(ctx echo.Context) error {
 	roomID := ctx.Param("room_id")
 	if roomID == str.Empty {
 		err := resterror.NewBadRequestError("empty room id")
-		handler.logs.Error(str.ErrorConcat(err, handlerName, "Join"))
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "GetMessages"))
 		ctx.Error(err)
 		return nil
 	}
@@ -132,49 +141,133 @@ func (handler *sessionHandler) GetMessages(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, messages)
 }
 
-func (handler *sessionHandler) HandleConnection(ctx echo.Context) error {
-	var sessionRequest entities.SessionRequest
-	if err := ctx.Bind(&sessionRequest); err != nil {
-		handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleConnection"))
+func (handler *sessionHandler) HandleChatConnection(ctx echo.Context) error {
+	var sessionChatRequest entities.SessionChatRequest
+	if err := ctx.Bind(&sessionChatRequest); err != nil {
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
 		ctx.Error(err)
 		return nil
 	}
 
-	socket, err := handler.websocket.GetSocket(ctx.Response(), ctx.Request(), sessionRequest.RoomID, sessionRequest.UserID)
+	socket, err := handler.websocket.GetSocket(ctx.Response(), ctx.Request(), sessionChatRequest.RoomID, sessionChatRequest.UserID)
 	if err != nil {
-		handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleConnection"))
 		ctx.Error(err)
 		return nil
 	}
+
+	messageChan := make(chan []byte)
+
+	go func() {
+		for msg := range messageChan {
+
+			var decodedMessage = new(entities.ChatMessage)
+			err := json.Unmarshal(msg, decodedMessage)
+			if err != nil {
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
+				continue
+			}
+
+			if strings.HasPrefix(decodedMessage.Content, "/") {
+				err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
+				if err != nil {
+					continue
+				}
+			}
+
+			fmt.Printf("Received message: %s\n", msg)
+			err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
+			if err != nil {
+				continue
+			}
+
+			err = handler.service.SaveMessage(ctx.Request().Context(), *decodedMessage, sessionChatRequest.RoomID)
+			if err != nil {
+				err = handler.websocket.CloseSocket(sessionChatRequest.RoomID, sessionChatRequest.UserID)
+				if err != nil {
+					continue
+				}
+			}
+		}
+	}()
 
 	for {
-		_, msg, err := socket.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			break
-		}
-
-		var decodedMessage = new(entities.ChatMessage)
-		err = json.Unmarshal(msg, decodedMessage)
-		if err != nil {
-			handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleConnection"))
-			continue
-		}
-
-		fmt.Printf("Received message: %s\n", msg)
-		err = handler.websocket.BroadCastMessage(msg, sessionRequest.RoomID)
-		if err != nil {
-			handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleConnection"))
-			continue
-		}
-
-		err = handler.service.SaveMessage(ctx.Request().Context(), *decodedMessage, sessionRequest.RoomID)
-		if err != nil {
-			err = handler.websocket.CloseSocket(sessionRequest.RoomID, sessionRequest.UserID)
-			if err != nil {
-				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleConnection"))
+		if socket != nil {
+			msgType, msg, err := socket.ReadMessage()
+			if msgType == -1 {
+				break
 			}
-			return err
+
+			if err != nil {
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
+				continue
+			}
+			messageChan <- msg
+		}
+	}
+
+	return nil
+}
+
+func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
+	var botSessionRequest entities.BotSessionRequest
+	if err := ctx.Bind(&botSessionRequest); err != nil {
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
+		ctx.Error(err)
+		return nil
+	}
+
+	socket, err := handler.websocket.GetSocket(ctx.Response(), ctx.Request(), botSessionRequest.RoomID, botSessionRequest.BotName)
+	if err != nil {
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
+		ctx.Error(err)
+		return nil
+	}
+
+	messageChan := make(chan []byte)
+
+	go func() {
+		for {
+			_, msg, err := socket.ReadMessage()
+			if err != nil {
+				log.Println(err)
+				break
+			}
+
+			var decodedMessage = new(entities.ChatMessage)
+			err = json.Unmarshal(msg, decodedMessage)
+			if err != nil {
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
+				continue
+			}
+
+			if strings.HasPrefix(decodedMessage.Content, fmt.Sprintf("/%s", botSessionRequest.BotName)) {
+				contentBytes, err := json.Marshal(decodedMessage.Content)
+				if err != nil {
+					handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
+					continue
+				}
+
+				err = handler.websocket.SendMessageToSocket(contentBytes, socket)
+				if err != nil {
+					handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
+					continue
+				}
+			}
+		}
+	}()
+
+	for {
+		if socket != nil {
+			msgType, msg, err := socket.ReadMessage()
+			if msgType == -1 {
+				break
+			}
+
+			if err != nil {
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
+				continue
+			}
+			messageChan <- msg
 		}
 	}
 

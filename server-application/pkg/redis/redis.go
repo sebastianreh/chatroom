@@ -35,7 +35,7 @@ func NewRedis(log logger.Logger, cfg config.Config) (Redis, error) {
 		log.Error(fmt.Sprintf("server => %s Redis => Monitoring | Cannot connect to redis server | Error => %s",
 			cfg.Redis.Host, status.Err()))
 	} else {
-		log.Info(fmt.Sprintf("Redis => Monitoring | Connected successfully to %s", cfg.Redis.Host))
+		log.Info(fmt.Sprintf("Redis => Monitoring | Connected successfully to %s", cfg.Redis.Host), "")
 	}
 
 	return &redis{

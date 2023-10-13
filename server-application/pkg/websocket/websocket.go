@@ -12,6 +12,7 @@ type Websocket interface {
 	GetSocket(responseWriter http.ResponseWriter, request *http.Request, groupID, userID string) (*ws.Conn, error)
 	CloseSocket(groupID, userID string) error
 	BroadCastMessage(message []byte, groupID string) error
+	SendMessageToSocket(message []byte, socket *ws.Conn) error
 }
 
 type websocket struct {
@@ -86,6 +87,13 @@ func (w *websocket) BroadCastMessage(message []byte, groupID string) error {
 		}
 	}
 
+	return nil
+}
+
+func (w *websocket) SendMessageToSocket(message []byte, socket *ws.Conn) error {
+	if err := socket.WriteMessage(ws.TextMessage, message); err != nil {
+		return err
+	}
 	return nil
 }
 

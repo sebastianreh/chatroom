@@ -5,11 +5,11 @@ import "github.com/kelseyhightower/envconfig"
 type (
 	Config struct {
 		Kafka struct {
-			Server      string `envconfig:"KAFKA_SERVER" default:"chatroom"`
-			StocksTopic string `envconfig:"STOCKS_TOPIC" default:"chatroom"`
+			Server      string `envconfig:"KAFKA_SERVER" default:"localhost:9092"`
+			StocksTopic string `envconfig:"STOCKS_TOPIC" default:"stocks"`
 		}
 		Websocket struct {
-			Host string `envconfig:"REDIS_HOST" default:"localhost:6379"`
+			Endpoint string `envconfig:"WEBSOCKET_ENDPOINT" default:"ws://localhost:8000/chatroom/session/bot"`
 		}
 	}
 )

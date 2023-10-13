@@ -17,8 +17,8 @@ const (
 )
 
 type SessionService interface {
-	Join(ctx context.Context, sessionJoin entities.SessionRequest) (entities.JoinResponse, error)
-	Exit(ctx context.Context, sessionExit entities.SessionRequest) error
+	Join(ctx context.Context, sessionJoin entities.SessionChatRequest) (entities.JoinResponse, error)
+	Exit(ctx context.Context, sessionExit entities.SessionChatRequest) error
 	SaveMessage(ctx context.Context, message entities.ChatMessage, roomID string) error
 	GetMessages(ctx context.Context, roomID string) ([]entities.ChatMessage, error)
 }
@@ -37,7 +37,7 @@ func NewSessionService(cfg config.Config, repository SessionRepository, logger l
 	}
 }
 
-func (service *sessionService) Join(ctx context.Context, sessionJoin entities.SessionRequest) (entities.JoinResponse, error) {
+func (service *sessionService) Join(ctx context.Context, sessionJoin entities.SessionChatRequest) (entities.JoinResponse, error) {
 	var joinResponse entities.JoinResponse
 	session, err := service.repository.Get(ctx, sessionJoin.RoomID)
 	if err != nil {
@@ -46,47 +46,44 @@ func (service *sessionService) Join(ctx context.Context, sessionJoin entities.Se
 
 	if session.RoomID == str.Empty {
 		session.RoomID = sessionJoin.RoomID
-		session.CurrentUsers = service.addUserToSession(sessionJoin.Username, session.CurrentUsers)
-		session.Events = append(session.Events, entities.Event{
-			SessionUser: sessionJoin.SessionUser,
-			Type:        entities.RoomActionEventType,
-			CreatedAt:   time.Now().UTC(),
-			Content:     entities.JoinContent,
-		})
-	} else if session.RoomID == sessionJoin.RoomID {
-		session.CurrentUsers = service.addUserToSession(sessionJoin.Username, session.CurrentUsers)
-		session.Events = append(session.Events, entities.Event{
-			SessionUser: sessionJoin.SessionUser,
-			Type:        entities.RoomActionEventType,
-			CreatedAt:   time.Now().UTC(),
-			Content:     entities.JoinContent,
-		})
 	}
+	currentUsers, err := service.addUserToSession(sessionJoin.Username, session.CurrentUsers)
+	if err != nil {
+		joinResponse.Users = session.CurrentUsers
+		return joinResponse, nil
+	}
+	session.CurrentUsers = currentUsers
+	session.Events = append(session.Events, entities.Event{
+		SessionUser: sessionJoin.SessionUser,
+		Type:        entities.RoomActionEventType,
+		CreatedAt:   time.Now().UTC(),
+		Content:     entities.JoinContent,
+	})
 
 	err = service.repository.Set(ctx, session)
+	joinResponse.Users = session.CurrentUsers
+
 	if err != nil {
 		return joinResponse, err
 	}
 
-	joinResponse.Users = session.CurrentUsers
-
 	return joinResponse, nil
 }
 
-func (service *sessionService) addUserToSession(usernameLookUp string, sessionUsers []string) []string {
+func (service *sessionService) addUserToSession(usernameLookUp string, sessionUsers []string) ([]string, error) {
 	for _, user := range sessionUsers {
 		if user == usernameLookUp {
 			err := errors.New(fmt.Sprintf("user %s already in session", usernameLookUp))
 			service.logs.Warn(str.ErrorConcat(err, serviceName, "addUserToSession"))
-			return sessionUsers
+			return sessionUsers, err
 		}
 	}
 
 	sessionUsers = append(sessionUsers, usernameLookUp)
-	return sessionUsers
+	return sessionUsers, nil
 }
 
-func (service *sessionService) Exit(ctx context.Context, sessionExit entities.SessionRequest) error {
+func (service *sessionService) Exit(ctx context.Context, sessionExit entities.SessionChatRequest) error {
 	session, err := service.repository.Get(ctx, sessionExit.RoomID)
 	if err != nil {
 		return err
@@ -162,11 +159,12 @@ func (service *sessionService) GetMessages(ctx context.Context, roomID string) (
 		return messages, nil
 	}
 
-	messageCounter := 0
-	for _, event := range session.Events {
-		if messageCounter == messageMaxLimit {
-			break
-		}
+	index := len(session.Events) - messageMaxLimit
+	if index < 0 {
+		index = 0
+	}
+
+	for _, event := range session.Events[index:] {
 		if event.Type == entities.UserMessageEventType {
 			message := entities.ChatMessage{
 				SessionUser: event.SessionUser,
@@ -174,7 +172,6 @@ func (service *sessionService) GetMessages(ctx context.Context, roomID string) (
 				Content:     event.Content,
 			}
 			messages = append(messages, message)
-			messageCounter++
 		}
 	}
 

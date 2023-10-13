@@ -24,7 +24,7 @@ type (
 		Kafka struct {
 			Server      string `envconfig:"KAFKA_SERVER" default:"localhost:9092"`
 			GroupID     string `envconfig:"KAFKA_GROUP_ID" default:"chatroom-group"`
-			StocksTopic string `envconfig:"STOCKS_TOPIC" default:"chatroom"`
+			StocksTopic string `envconfig:"STOCKS_TOPIC" default:"stocks"`
 		}
 	}
 )

@@ -50,7 +50,7 @@ func Build() Dependencies {
 
 	sessionRepository := session.NewSessionRepository(dependencies.Config, redis, dependencies.Logs)
 	sessionService := session.NewSessionService(dependencies.Config, sessionRepository, dependencies.Logs)
-	sessionHandler := session.NewSessionHandler(dependencies.Config, sessionService, websocket, dependencies.Logs)
+	sessionHandler := session.NewSessionHandler(dependencies.Config, sessionService, websocket, kafkaConsumer, dependencies.Logs)
 
 	dependencies.UserHandler = userHandler
 	dependencies.RoomHandler = roomHandler

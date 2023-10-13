@@ -2,6 +2,7 @@ package room
 
 import (
 	"errors"
+	"github.com/labstack/echo/v4"
 	"github.com/sebastianreh/chatroom/cmd/httpserver/resterror"
 	"github.com/sebastianreh/chatroom/internal/config"
 	"github.com/sebastianreh/chatroom/internal/entities"

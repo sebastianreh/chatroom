@@ -2,43 +2,43 @@ package entities
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"time"
 )
 
 const (
-	timeLayout = "2006-01-02 15:04:05"
+	MessageFormat = "%s quote is $%v per share"
 )
 
-type Stock struct {
-	Symbol   string
-	DateTime time.Time
-	Open     string
-	High     string
-	Low      string
-	Close    string
-	Volume   string
+type StockMessage struct {
+	RoomID    string    `json:"room_id"`
+	Message   string    `json:"bot_message"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
-func MapRecordsToStock(records [][]string) (Stock, error) {
-	var stock Stock
+func MapRecordsToStock(roomID string, records [][]string) (StockMessage, error) {
+	var stock StockMessage
 	if len(records) != 2 {
 		return stock, errors.New("records len is not 2")
 	}
 
 	data := records[1]
-	dateTimeStr := data[1] + " " + data[2]
-	dateTime, err := time.Parse(timeLayout, dateTimeStr)
+	high, err := strconv.ParseFloat(data[4], 64)
 	if err != nil {
 		return stock, err
 	}
 
-	stock.DateTime = dateTime
-	stock.Symbol = data[0]
-	stock.Open = data[3]
-	stock.High = data[4]
-	stock.Low = data[5]
-	stock.Close = data[6]
-	stock.Volume = data[7]
+	low, err := strconv.ParseFloat(data[5], 64)
+	if err != nil {
+		return stock, err
+	}
 
-	return stock, nil
+	average := (high + low) / 2
+	stockMessage := StockMessage{
+		RoomID:  roomID,
+		Message: fmt.Sprintf(MessageFormat, data[0], average),
+	}
+
+	return stockMessage, nil
 }

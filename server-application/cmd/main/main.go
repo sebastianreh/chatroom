@@ -14,5 +14,10 @@ func main() {
 	)
 	server.Routes()
 	server.SetErrorHandler(httpserver.HTTPErrorHandler)
+	runConsumers(dependencies)
 	server.Start()
+}
+
+func runConsumers(dependencies container.Dependencies) {
+	go dependencies.SessionHandler.Listen()
 }

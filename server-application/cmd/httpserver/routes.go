@@ -20,5 +20,6 @@ func (s *Server) Routes() {
 	sessionGroup.POST("/join", s.dependencies.SessionHandler.Join)
 	sessionGroup.POST("/exit", s.dependencies.SessionHandler.Exit)
 	sessionGroup.GET("/messages/:room_id", s.dependencies.SessionHandler.GetMessages)
-	sessionGroup.GET("", s.dependencies.SessionHandler.HandleConnection)
+	sessionGroup.GET("/chat", s.dependencies.SessionHandler.HandleChatConnection)
+	sessionGroup.GET("/bot", s.dependencies.SessionHandler.HandleBotConnection)
 }

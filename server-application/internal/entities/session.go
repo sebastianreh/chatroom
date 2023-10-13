@@ -7,7 +7,7 @@ const (
 	ExitAction = "exit"
 )
 
-type SessionRequest struct {
+type SessionChatRequest struct {
 	RoomID string `json:"room_id" validate:"required" query:"room_id"`
 	SessionUser
 }
@@ -30,6 +30,11 @@ type JoinResponse struct {
 type SessionAction struct {
 	SessionUser
 	Type string `json:"type"`
+}
+
+type BotSessionRequest struct {
+	RoomID  string `json:"room_id" validate:"required" query:"room_id"`
+	BotName string `json:"bot_name" validate:"required" query:"bot_name"`
 }
 
 func GetJoinAction(sessionUser SessionUser) SessionAction {
