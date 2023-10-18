@@ -2,77 +2,59 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/go-resty/resty/v2"
 	"github.com/sebastianreh/chatroom-bots/stocks/entities"
-	"github.com/sebastianreh/chatroom-bots/stocks/internal/config"
+	ctr "github.com/sebastianreh/chatroom-bots/stocks/internal/container"
 	"github.com/sebastianreh/chatroom-bots/stocks/pkg/csv"
-	"github.com/sebastianreh/chatroom-bots/stocks/pkg/kafka"
-	"github.com/sebastianreh/chatroom-bots/stocks/pkg/rest"
-	"github.com/sebastianreh/chatroom-bots/stocks/pkg/websocket"
-	"github.com/sebastianreh/chatroom/pkg/logger"
-	"regexp"
 )
 
-const maxRetires = 10
-const roomID = "651f0027d2c7b1f7d56ae334"
-const stockCommand = "/stock=stock_code"
-const BotName = "stock"
+const (
+	BotName     = "stock"
+	emptyString = ""
+)
 
 func main() {
-	cfg := config.NewConfig()
-	log := logger.NewLogger()
-	restyClient := resty.New()
-	factoryProducer, err := kafka.NewFactoryProducer(log, cfg.Kafka.Server, kafka.WithMaxRetries(maxRetires))
-	if err != nil {
-		log.Error("error initializing kafka producer", "main", err.Error())
-	}
+	container := ctr.Build(BotName)
+	ProcessMessages(container)
+}
 
-	socket := websocket.NewWebsocket(log, cfg, BotName, roomID)
-
+func ProcessMessages(container ctr.Container) {
 	for {
-		message, err := socket.ReadMessage()
+		message, err := container.Socket.ReadMessage()
 		if err != nil {
-			log.Error("error initializing kafka producer", "main", err.Error())
+			container.Logs.Error("error reading message", "ProcessMessages", err.Error())
 			continue
 		}
 
-		stockCode := parseStockCodeFromMessage(message)
-
-		if stockCode == "" {
+		if message.Value == emptyString {
 			continue
 		}
 
-		client := rest.NewStooqClient(log, restyClient)
-		stockCSV, _ := client.GetStockCSV(stockCode)
+		stockCSV, err := container.Client.GetStockCSV(message.Value)
+		if err != nil {
+			continue
+		}
 
 		stockRecords, err := csv.ReadStockCsv(stockCSV)
-
-		stockMessage, err := entities.MapRecordsToStock(roomID, stockRecords)
 		if err != nil {
-			log.Error("error initializing kafka producer", "main", err.Error())
+			container.Logs.Error("error reading stock csv", "ProcessMessages", err.Error())
+			continue
+		}
+
+		stockMessage, err := entities.MapRecordsToStock(container.RoomID, stockRecords)
+		if err != nil {
+			container.Logs.Error("error mapping records for stock", "ProcessMessages", err.Error())
+			continue
 		}
 
 		stockMessageBytes, err := json.Marshal(stockMessage)
-
-		err = factoryProducer.Send(cfg.Kafka.StocksTopic, stockMessageBytes)
 		if err != nil {
-			log.Error("error initializing kafka producer", "main", err.Error())
+			container.Logs.Error("error marshaling message", "ProcessMessages", err.Error())
+			continue
+		}
+
+		err = container.Producer.Send(container.Config.Kafka.StocksTopic, stockMessageBytes)
+		if err != nil {
+			container.Logs.Error("error initializing kafka producer", "ProcessMessages", err.Error())
 		}
 	}
-}
-
-func parseStockCodeFromMessage(message string) string {
-	var stockCode string
-	re := regexp.MustCompile(fmt.Sprintf(`/%s=(.+)`, BotName))
-	matches := re.FindStringSubmatch(message)
-
-	if len(matches) > 1 {
-		stockCode := matches[1]
-		fmt.Println("Stock Code:", stockCode)
-	} else {
-		fmt.Println("No stock code found in the input string")
-	}
-
-	return stockCode
 }

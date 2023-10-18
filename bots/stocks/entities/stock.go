@@ -3,6 +3,7 @@ package entities
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 )
@@ -34,11 +35,16 @@ func MapRecordsToStock(roomID string, records [][]string) (StockMessage, error) 
 		return stock, err
 	}
 
-	average := (high + low) / 2
+	average := roundTo2Decimals((high + low) / 2)
 	stockMessage := StockMessage{
-		RoomID:  roomID,
-		Message: fmt.Sprintf(MessageFormat, data[0], average),
+		RoomID:    roomID,
+		Message:   fmt.Sprintf(MessageFormat, data[0], average),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	return stockMessage, nil
+}
+
+func roundTo2Decimals(value float64) float64 {
+	return math.Round(value*100) / 100
 }

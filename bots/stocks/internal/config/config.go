@@ -6,7 +6,8 @@ type (
 	Config struct {
 		Kafka struct {
 			Server      string `envconfig:"KAFKA_SERVER" default:"localhost:9092"`
-			StocksTopic string `envconfig:"STOCKS_TOPIC" default:"stocks"`
+			StocksTopic string `envconfig:"KAFKA_STOCKS_TOPIC" default:"stocks"`
+			MaxRetries  int    `envconfig:"KAFKA_MAX_RETRIES" default:"10"`
 		}
 		Websocket struct {
 			Endpoint string `envconfig:"WEBSOCKET_ENDPOINT" default:"ws://localhost:8000/chatroom/session/bot"`

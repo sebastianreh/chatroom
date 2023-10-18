@@ -15,7 +15,7 @@ const (
 	defaultMaxRetries = 10
 )
 
-type FactoryProducer interface {
+type Producer interface {
 	Send(topic string, message []byte) (err error)
 }
 
@@ -29,7 +29,7 @@ type producer struct {
 
 type ProducerOption func(*producer)
 
-func NewFactoryProducer(logger logger.Logger, serverAddress string, opts ...ProducerOption) (FactoryProducer, error) {
+func NewProducer(logger logger.Logger, serverAddress string, opts ...ProducerOption) (Producer, error) {
 	if strings.IsEmpty(serverAddress) {
 		return &producer{}, errors.New("error, the serverAddress variable is empty")
 	}
@@ -89,6 +89,8 @@ func (producer *producer) sendMessage(topic string, message []byte) error {
 		producer.logs.Error("Error sending message: %+v", anyErr)
 		return err
 	}
+
+	producer.logs.Info("Sent kafka message", string(message))
 	return nil
 }
 

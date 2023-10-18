@@ -11,7 +11,7 @@ import (
 const (
 	endpoint              = "https://stooq.com/q/l/?s=%s&f=sd2t2ohlcv&h&e=csv"
 	GetStockCSVMethodName = "GetStockCSV"
-	apiClientName         = "api_client"
+	apiClientName         = "stooq_client"
 )
 
 type (

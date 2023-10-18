@@ -13,6 +13,7 @@ import (
 	ws "github.com/sebastianreh/chatroom/pkg/websocket"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -168,10 +169,14 @@ func (handler *sessionHandler) HandleChatConnection(ctx echo.Context) error {
 			}
 
 			if strings.HasPrefix(decodedMessage.Content, "/") {
-				err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
-				if err != nil {
-					continue
+				command, value := parseStockCodeFromMessage(string(msg))
+				botMessage := entities.BotMessage{
+					Command: command,
+					Value:   value,
 				}
+				msg, _ = json.Marshal(botMessage)
+				err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
+				continue
 			}
 
 			fmt.Printf("Received message: %s\n", msg)
@@ -206,6 +211,25 @@ func (handler *sessionHandler) HandleChatConnection(ctx echo.Context) error {
 	}
 
 	return nil
+}
+
+func parseStockCodeFromMessage(message string) (string, string) {
+	var action, stockCode string
+
+	// The regular expression now captures the word before the equals sign and the word after the equals sign separately
+	re := regexp.MustCompile(`/(\w+)=([\w\.]+)`)
+	matches := re.FindStringSubmatch(message)
+
+	if len(matches) > 2 {
+		action = matches[1]    // "stock"
+		stockCode = matches[2] // "aapl.us"
+		fmt.Println("Action:", action)
+		fmt.Println("Stock Code:", stockCode)
+	} else {
+		fmt.Println("No valid pattern found in the input string")
+	}
+
+	return action, stockCode
 }
 
 func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
@@ -264,7 +288,7 @@ func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
 			}
 
 			if err != nil {
-				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
 				continue
 			}
 			messageChan <- msg

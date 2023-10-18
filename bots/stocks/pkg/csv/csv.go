@@ -3,7 +3,6 @@ package csv
 import (
 	"bytes"
 	"encoding/csv"
-	"fmt"
 )
 
 func ReadStockCsv(CSV []byte) ([][]string, error) {
@@ -13,7 +12,7 @@ func ReadStockCsv(CSV []byte) ([][]string, error) {
 		record, err := reader.Read()
 		if err != nil {
 			if err.Error() != "EOF" {
-				fmt.Println("error reading CSV record", err)
+				return records, err
 			}
 			break
 		}

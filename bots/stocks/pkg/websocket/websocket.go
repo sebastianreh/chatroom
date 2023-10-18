@@ -1,14 +1,16 @@
 package websocket
 
 import (
+	"encoding/json"
 	"fmt"
 	ws "github.com/gorilla/websocket"
+	"github.com/sebastianreh/chatroom-bots/stocks/entities"
 	"github.com/sebastianreh/chatroom-bots/stocks/internal/config"
 	"github.com/sebastianreh/chatroom/pkg/logger"
 )
 
 type Websocket interface {
-	ReadMessage() (string, error)
+	ReadMessage() (entities.BotMessage, error)
 }
 
 type websocket struct {
@@ -17,7 +19,7 @@ type websocket struct {
 }
 
 func NewWebsocket(logs logger.Logger, cfg config.Config, botName, roomID string) Websocket {
-	url := fmt.Sprintf("%s?bot_name=%s&room_id%s", cfg.Websocket.Endpoint, botName, roomID)
+	url := fmt.Sprintf("%s?bot_name=%s&room_id=%s", cfg.Websocket.Endpoint, botName, roomID)
 	socket, err := getSocket(url)
 	if err != nil {
 		logs.Fatal(err.Error())
@@ -39,10 +41,17 @@ func getSocket(url string) (*ws.Conn, error) {
 	return conn, nil
 }
 
-func (w websocket) ReadMessage() (string, error) {
+func (w websocket) ReadMessage() (entities.BotMessage, error) {
 	_, msgBytes, err := w.socket.ReadMessage()
 	if err != nil {
 		w.Logger.Error("error reading message", "ReadMessage", err.Error())
 	}
-	return string(msgBytes), nil
+
+	botMessage := new(entities.BotMessage)
+	err = json.Unmarshal(msgBytes, botMessage)
+	if err != nil {
+		w.Logger.Error("error reading message", "ReadMessage", err.Error())
+	}
+
+	return *botMessage, nil
 }
