@@ -1,7 +1,7 @@
 import React, {useEffect, useState, useRef, useContext} from 'react';
 import {useUser} from "./UserContext";
 import {useRoom} from "./RoomContext";
-import {useNavigate} from 'react-router-dom';
+import {useNavigate, usePrompt} from 'react-router-dom';
 
 function ChatInput({onSend}) {
     const [message, setMessage] = useState('');
@@ -16,7 +16,7 @@ function ChatInput({onSend}) {
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevents a new line in the input
+            e.preventDefault();
             handleSend();
         }
     };
@@ -26,7 +26,7 @@ function ChatInput({onSend}) {
             <input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown} // New event listener here
+                onKeyDown={handleKeyDown}
                 placeholder="Type a message..."
             />
             <button onClick={handleSend}>Send</button>
@@ -93,8 +93,8 @@ function Chat() {
             console.log('WebSocket connection opened');
         };
 
-        ws.onerror = () => {
-            console.log('ERROR')
+        ws.onerror = (error) => {
+            console.log('WebSocket Error:', error);
         }
 
         fetch(`http://localhost:8000/chatroom/session/messages/${room.room_id}`)
@@ -222,13 +222,21 @@ function Chat() {
                 return newMessages;
             });
         }
+    }, [room.room_id, user, users]);
 
-        return () => {
+    useEffect(() => {
+        const handleUnload = () => {
             if (wsRef.current) {
                 wsRef.current.close();
             }
         };
-    }, [room.room_id, user, users]);
+
+        window.addEventListener('beforeunload', handleUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleUnload);
+        };
+    }, []);
 
     const handleSend = (message, username, user_id, created_at) => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -273,25 +281,3 @@ function Chat() {
 
 
 export default Chat;
-
-/*
-function Chat() {
-    const {user} = useUser();
-
-    if (user) {
-        return (
-            <div>
-                Chat interface will be here.
-            </div>
-        );
-    }
-    else {
-        return (
-            <div>
-                <h2>Not logged in</h2>
-            </div>
-        )
-    }
-}
-
- */

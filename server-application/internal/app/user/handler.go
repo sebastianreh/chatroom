@@ -1,7 +1,6 @@
 package user
 
 import (
-	"errors"
 	"github.com/labstack/echo/v4"
 	"github.com/sebastianreh/chatroom/cmd/httpserver/resterror"
 	"github.com/sebastianreh/chatroom/internal/config"
@@ -89,7 +88,7 @@ func (handler *userHandler) Get(ctx echo.Context) error {
 func (handler *userHandler) Delete(ctx echo.Context) error {
 	userID := ctx.Param("id")
 	if str.IsEmpty(userID) {
-		err := errors.New("error: empty id")
+		err := resterror.NewBadRequestError("error: empty id")
 		handler.logs.Error(str.ErrorConcat(err, handlerName, "Delete"))
 		ctx.Error(err)
 		return nil

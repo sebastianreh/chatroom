@@ -3,6 +3,7 @@ package csv
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 )
 
 func ReadStockCsv(CSV []byte) ([][]string, error) {
@@ -17,6 +18,9 @@ func ReadStockCsv(CSV []byte) ([][]string, error) {
 			break
 		}
 		records = append(records, record)
+	}
+	if len(records) < 2 {
+		return records, errors.New("records len != 2")
 	}
 	return records, nil
 }

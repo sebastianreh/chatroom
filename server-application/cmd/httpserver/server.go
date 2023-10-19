@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/sebastianreh/chatroom/internal/container"
+	"net/http"
 )
 
 type Server struct {
@@ -24,4 +25,8 @@ func (s *Server) Start() {
 
 func (s *Server) SetErrorHandler(errorHandler echo.HTTPErrorHandler) {
 	s.Server.HTTPErrorHandler = errorHandler
+}
+
+func (s *Server) NewServerContext(request *http.Request, writer http.ResponseWriter) echo.Context {
+	return s.Server.NewContext(request, writer)
 }

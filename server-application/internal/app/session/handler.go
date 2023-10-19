@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"github.com/sebastianreh/chatroom/cmd/httpserver/resterror"
 	"github.com/sebastianreh/chatroom/internal/config"
@@ -13,7 +14,6 @@ import (
 	ws "github.com/sebastianreh/chatroom/pkg/websocket"
 	"log"
 	"net/http"
-	"regexp"
 	"strings"
 )
 
@@ -102,26 +102,36 @@ func (handler *sessionHandler) Exit(ctx echo.Context) error {
 		return nil
 	}
 
-	err := handler.websocket.CloseSocket(request.RoomID, request.UserID)
-	if err != nil {
-		err = resterror.NewBadRequestError(err.Error())
-		ctx.Error(err)
-		return nil
-	}
-
-	exitAction := entities.GetExitAction(request.SessionUser)
-	err = handler.websocket.BroadCastMessage(exitAction.ToBytes(), request.RoomID)
-	if err != nil {
-		ctx.Error(err)
-	}
-
-	err = handler.service.Exit(ctx.Request().Context(), *request)
+	err := handler.closeSocketAndSendMessage(ctx, *request)
 	if err != nil {
 		ctx.Error(err)
 		return nil
 	}
 
 	return ctx.NoContent(http.StatusOK)
+}
+
+func (handler *sessionHandler) closeSocketAndSendMessage(ctx echo.Context, request entities.SessionChatRequest) error {
+	err := handler.websocket.CloseSocket(request.RoomID, request.UserID)
+	if err != nil {
+		err = resterror.NewBadRequestError(err.Error())
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "closeSocketAndSendMessage"))
+		return err
+	}
+
+	exitAction := entities.GetExitAction(request.SessionUser)
+	err = handler.websocket.BroadCastMessage(exitAction.ToBytes(), request.RoomID)
+	if err != nil {
+		handler.logs.Warn(str.ErrorConcat(err, handlerName, "closeSocketAndSendMessage"))
+	}
+
+	err = handler.service.Exit(ctx.Request().Context(), request)
+	if err != nil {
+		handler.logs.Error(str.ErrorConcat(err, handlerName, "closeSocketAndSendMessage"))
+		return err
+	}
+
+	return nil
 }
 
 func (handler *sessionHandler) GetMessages(ctx echo.Context) error {
@@ -160,7 +170,6 @@ func (handler *sessionHandler) HandleChatConnection(ctx echo.Context) error {
 
 	go func() {
 		for msg := range messageChan {
-
 			var decodedMessage = new(entities.ChatMessage)
 			err := json.Unmarshal(msg, decodedMessage)
 			if err != nil {
@@ -168,20 +177,22 @@ func (handler *sessionHandler) HandleChatConnection(ctx echo.Context) error {
 				continue
 			}
 
-			if strings.HasPrefix(decodedMessage.Content, "/") {
-				command, value := parseStockCodeFromMessage(string(msg))
-				botMessage := entities.BotMessage{
-					Command: command,
-					Value:   value,
+			if strings.HasPrefix(decodedMessage.Content, str.CommandPrefix) {
+				command, value := str.ParseStockCodeFromMessage(string(msg))
+				if command != str.Empty || value != str.Empty {
+					botMessage := entities.BotMessage{
+						Command: command,
+						Value:   value,
+					}
+					msg, _ = json.Marshal(botMessage)
+					err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
+					continue
 				}
-				msg, _ = json.Marshal(botMessage)
-				err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
-				continue
 			}
 
-			fmt.Printf("Received message: %s\n", msg)
 			err = handler.websocket.BroadCastMessage(msg, sessionChatRequest.RoomID)
 			if err != nil {
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
 				continue
 			}
 
@@ -189,47 +200,16 @@ func (handler *sessionHandler) HandleChatConnection(ctx echo.Context) error {
 			if err != nil {
 				err = handler.websocket.CloseSocket(sessionChatRequest.RoomID, sessionChatRequest.UserID)
 				if err != nil {
+					handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
 					continue
 				}
 			}
 		}
 	}()
 
-	for {
-		if socket != nil {
-			msgType, msg, err := socket.ReadMessage()
-			if msgType == -1 {
-				break
-			}
-
-			if err != nil {
-				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleChatConnection"))
-				continue
-			}
-			messageChan <- msg
-		}
-	}
+	handler.readMessages(socket, messageChan)
 
 	return nil
-}
-
-func parseStockCodeFromMessage(message string) (string, string) {
-	var action, stockCode string
-
-	// The regular expression now captures the word before the equals sign and the word after the equals sign separately
-	re := regexp.MustCompile(`/(\w+)=([\w\.]+)`)
-	matches := re.FindStringSubmatch(message)
-
-	if len(matches) > 2 {
-		action = matches[1]    // "stock"
-		stockCode = matches[2] // "aapl.us"
-		fmt.Println("Action:", action)
-		fmt.Println("Stock Code:", stockCode)
-	} else {
-		fmt.Println("No valid pattern found in the input string")
-	}
-
-	return action, stockCode
 }
 
 func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
@@ -264,7 +244,7 @@ func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
 				continue
 			}
 
-			if strings.HasPrefix(decodedMessage.Content, fmt.Sprintf("/%s", botSessionRequest.BotName)) {
+			if strings.HasPrefix(decodedMessage.Content, fmt.Sprintf(str.CommandPrefix+"%s", botSessionRequest.BotName)) {
 				contentBytes, err := json.Marshal(decodedMessage.Content)
 				if err != nil {
 					handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
@@ -280,6 +260,12 @@ func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
 		}
 	}()
 
+	handler.readMessages(socket, messageChan)
+
+	return nil
+}
+
+func (handler *sessionHandler) readMessages(socket *websocket.Conn, messageChan chan []byte) {
 	for {
 		if socket != nil {
 			msgType, msg, err := socket.ReadMessage()
@@ -288,12 +274,10 @@ func (handler *sessionHandler) HandleBotConnection(ctx echo.Context) error {
 			}
 
 			if err != nil {
-				handler.logs.Error(str.ErrorConcat(err, handlerName, "HandleBotConnection"))
+				handler.logs.Error(str.ErrorConcat(err, handlerName, "readMessages"))
 				continue
 			}
 			messageChan <- msg
 		}
 	}
-
-	return nil
 }
