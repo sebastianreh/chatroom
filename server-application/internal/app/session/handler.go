@@ -49,6 +49,9 @@ func NewSessionHandler(cfg config.Config, service SessionService, websocket ws.W
 func (handler *sessionHandler) Listen() {
 	err := handler.listener.Listen(handler.ReadStockMessage)
 	if err != nil {
+		if strings.Contains(err.Error(), "Subscribed topic not available") {
+			handler.Listen()
+		}
 		handler.logs.Error(str.ErrorConcat(err, handlerName, "Listen"))
 		return
 	}
@@ -62,7 +65,7 @@ func (handler *sessionHandler) ReadStockMessage(message []byte) {
 		return
 	}
 
-	handler.logs.Info("New message received", handlerName, "Listen")
+	handler.logs.Info("New message received", handlerName+".Listen")
 
 	err = handler.websocket.BroadCastMessage(message, stock.RoomID)
 	if err != nil {

@@ -42,13 +42,13 @@ func (handler *roomHandler) Create(ctx echo.Context) error {
 		return nil
 	}
 
-	err := handler.service.Create(ctx.Request().Context(), *request)
+	response, err := handler.service.Create(ctx.Request().Context(), *request)
 	if err != nil {
 		ctx.Error(err)
 		return nil
 	}
 
-	return ctx.NoContent(http.StatusCreated)
+	return ctx.JSON(http.StatusCreated, response)
 }
 
 func (handler *roomHandler) Get(ctx echo.Context) error {

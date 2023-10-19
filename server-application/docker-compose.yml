@@ -1,20 +1,4 @@
 services:
-  httpserver:
-    ports:
-      - "8000:8000"
-    image: chatroom:latest
-    volumes:
-      - ./:/go/src/chatroom
-    depends_on:
-      - mongo
-    environment:
-      WAIT_HOSTS: mongo:27018
-      MONGODB_URI: mongodb://mongo:27018
-      ENV: local
-      DD_TRACE_ENABLED: "false"
-    networks:
-      - backend
-
   mongo:
     networks:
       - backend
@@ -38,8 +22,14 @@ services:
     image: wurstmeister/zookeeper:3.4.6
     ports:
       - "2181:2181"
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - backend
+
 
   kafka:
     image: wurstmeister/kafka:latest
@@ -52,8 +42,12 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "stocks:1:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      zookeeper:
+        condition: service_healthy
     networks:
       - backend
 

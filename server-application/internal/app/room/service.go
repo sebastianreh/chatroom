@@ -16,8 +16,7 @@ const (
 )
 
 type RoomService interface {
-	Create(ctx context.Context, room entities.Room) error
-	Join(ctx context.Context) error
+	Create(ctx context.Context, room entities.Room) (entities.RoomCreateResponse, error)
 	Get(ctx context.Context, search entities.RoomSearch) (entities.RoomsGetResponse, error)
 	Delete(ctx context.Context, roomID string) error
 }
@@ -36,29 +35,27 @@ func NewRoomService(cfg config.Config, repository RoomRepository, logger logger.
 	}
 }
 
-func (service *roomService) Create(ctx context.Context, room entities.Room) error {
+func (service *roomService) Create(ctx context.Context, room entities.Room) (entities.RoomCreateResponse, error) {
+	var roomCreateResponse entities.RoomCreateResponse
 	rooms, err := service.repository.Get(ctx, entities.RoomSearch{Name: room.Name})
 	if err != nil {
-		return err
+		return roomCreateResponse, err
 	}
 
 	if len(rooms) > 0 {
 		err = exceptions.NewDuplicatedException(fmt.Sprintf("room '%s' already exist", room.Name))
 		service.logs.Error(str.ErrorConcat(err, serviceName, "Set"))
-		return err
+		return roomCreateResponse, err
 	}
 
-	err = service.repository.Create(ctx, room)
+	roomID, err := service.repository.Create(ctx, room)
 	if err != nil {
-		return err
+		return roomCreateResponse, err
 	}
 
-	return nil
-}
+	roomCreateResponse.ID = roomID
 
-func (service *roomService) Join(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+	return roomCreateResponse, nil
 }
 
 func (service *roomService) Get(ctx context.Context, search entities.RoomSearch) (entities.RoomsGetResponse, error) {

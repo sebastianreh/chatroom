@@ -18,7 +18,7 @@ const (
 )
 
 type RoomRepository interface {
-	Create(ctx context.Context, room entities.Room) error
+	Create(ctx context.Context, room entities.Room) (string, error)
 	Get(ctx context.Context, search entities.RoomSearch) ([]entities.Room, error)
 	Update(ctx context.Context, roomID string, room entities.Room) error
 }
@@ -39,15 +39,15 @@ func NewRoomRepository(cfg config.Config, mongoDBier mongodb.MongoDBier, logger 
 	}
 }
 
-func (repository *roomRepository) Create(ctx context.Context, room entities.Room) error {
+func (repository *roomRepository) Create(ctx context.Context, room entities.Room) (string, error) {
 	roomDTO := entities.CreateRoomDTOFromEntity(room)
 	_, err := repository.mongodb.Collection(repository.collectionName).InsertOne(ctx, roomDTO)
 	if err != nil {
 		repository.logs.Error(str.ErrorConcat(err, repositoryName, "Set"))
-		return err
+		return str.Empty, err
 	}
 
-	return nil
+	return roomDTO.ID.Hex(), nil
 }
 
 func (repository *roomRepository) Get(ctx context.Context, search entities.RoomSearch) ([]entities.Room, error) {

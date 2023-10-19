@@ -14,6 +14,10 @@ type Room struct {
 	IsActive bool   `json:"is_active"`
 }
 
+type RoomCreateResponse struct {
+	ID string `json:"id"`
+}
+
 type RoomsGetResponse struct {
 	Rooms []Room `json:"rooms"`
 }
